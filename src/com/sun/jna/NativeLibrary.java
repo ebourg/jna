@@ -179,16 +179,36 @@ public class NativeLibrary {
         searchPath.addAll(initPaths("jna.library.path"));
         String libraryPath = findLibraryPath(libraryName, searchPath);
         long handle = 0;
+        
+        // Try to extract the library from the class
+        // path, using the current context class loader.
+        try {
+            File embedded = Native.extractFromResourcePath(libraryName, (ClassLoader) options.get(Library.OPTION_CLASSLOADER));
+            try {
+                handle = Native.open(embedded.getAbsolutePath(), openFlags);
+                libraryPath = embedded.getAbsolutePath();
+            } finally {
+                // Don't leave temporary files around
+                if (Native.isUnpacked(embedded)) {
+                    Native.deleteLibrary(embedded);
+                }
+            }
+        } catch (IOException e) {
+            throw new UnsatisfiedLinkError("Unable to load library '" + libraryName + "': " + e.getMessage());
+        }
+        
         //
         // Only search user specified paths first.  This will also fall back
         // to dlopen/LoadLibrary() since findLibraryPath returns the mapped
         // name if it cannot find the library.
         //
         try {
-            if (Native.DEBUG_LOAD) {
-                System.out.println("Trying " + libraryPath);
+            if (handle == 0) {
+                if (Native.DEBUG_LOAD) {
+                    System.out.println("Trying " + libraryPath);
+                }
+                handle = Native.open(libraryPath, openFlags);
             }
-            handle = Native.open(libraryPath, openFlags);
         } catch(UnsatisfiedLinkError e) {
             // Add the system paths back for all fallback searching
             if (Native.DEBUG_LOAD) {
@@ -277,25 +297,6 @@ public class NativeLibrary {
                     } catch(UnsatisfiedLinkError e2) {
                         e = e2;
                     }
-                }
-            }
-            // As a last resort, try to extract the library from the class
-            // path, using the current context class loader.
-            if (handle == 0) {
-                try {
-                    File embedded = Native.extractFromResourcePath(libraryName, (ClassLoader)options.get(Library.OPTION_CLASSLOADER));
-                    try {
-                        handle = Native.open(embedded.getAbsolutePath(), openFlags);
-                        libraryPath = embedded.getAbsolutePath();
-                    } finally {
-                        // Don't leave temporary files around
-                        if (Native.isUnpacked(embedded)) {
-                            Native.deleteLibrary(embedded);
-                        }
-                    }
-                }
-                catch(IOException e2) {
-                    e = new UnsatisfiedLinkError(e2.getMessage());
                 }
             }
 
