@@ -194,7 +194,7 @@ public class NativeLibrary {
                 }
             }
         } catch (IOException e) {
-            throw new UnsatisfiedLinkError("Unable to load library '" + libraryName + "': " + e.getMessage());
+            //throw (Error) new UnsatisfiedLinkError("Unable to load library '" + libraryName + "'").initCause(e);
         }
         
         //
